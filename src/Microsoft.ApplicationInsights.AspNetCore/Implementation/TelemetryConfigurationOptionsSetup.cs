@@ -7,8 +7,8 @@ namespace Microsoft.Extensions.DependencyInjection
     using Microsoft.ApplicationInsights.AspNetCore.Extensions;
     using Microsoft.ApplicationInsights.Channel;
     using Microsoft.ApplicationInsights.Extensibility;
-#if NET451 || NET46
     using Microsoft.ApplicationInsights.Extensibility.PerfCounterCollector.QuickPulse;
+#if NET451 || NET46
     using Microsoft.ApplicationInsights.WindowsServer.TelemetryChannel;
 #endif
     using Microsoft.Extensions.Options;
@@ -95,25 +95,25 @@ namespace Microsoft.Extensions.DependencyInjection
 
         private void AddTelemetryChannelAndProcessorsForFullFramework(TelemetryConfiguration configuration)
         {
+            // Enabling Quick Pulse Metric Stream
+            if (this.applicationInsightsServiceOptions.EnableQuickPulseMetricStream)
+            {
+                var quickPulseModule = new QuickPulseTelemetryModule();
+                quickPulseModule.Initialize(configuration);
+
+                QuickPulseTelemetryProcessor processor = null;
+                configuration.TelemetryProcessorChainBuilder.Use((next) => {
+                    processor = new QuickPulseTelemetryProcessor(next);
+                    quickPulseModule.RegisterTelemetryProcessor(processor);
+                    return processor;
+                });
+            }
+
 #if NET451 || NET46
             // Adding Server Telemetry Channel if services doesn't have an existing channel
             configuration.TelemetryChannel = this.telemetryChannel ?? new ServerTelemetryChannel();
             if (configuration.TelemetryChannel is ServerTelemetryChannel)
             {
-                // Enabling Quick Pulse Metric Stream
-                if (this.applicationInsightsServiceOptions.EnableQuickPulseMetricStream)
-                {
-                    var quickPulseModule = new QuickPulseTelemetryModule();
-                    quickPulseModule.Initialize(configuration);
-
-                    QuickPulseTelemetryProcessor processor = null;
-                    configuration.TelemetryProcessorChainBuilder.Use((next) => {
-                        processor = new QuickPulseTelemetryProcessor(next);
-                        quickPulseModule.RegisterTelemetryProcessor(processor);
-                        return processor;
-                    });
-                }
-
                 // Enabling Adaptive Sampling and initializing server telemetry channel with configuration
                 if (configuration.TelemetryChannel.GetType() == typeof(ServerTelemetryChannel))
                 {
@@ -123,10 +123,9 @@ namespace Microsoft.Extensions.DependencyInjection
                     }
                     (configuration.TelemetryChannel as ServerTelemetryChannel).Initialize(configuration);
                 }
-
-                configuration.TelemetryProcessorChainBuilder.Build();
             }
 #endif
+            configuration.TelemetryProcessorChainBuilder.Build();
         }
     }
 }
